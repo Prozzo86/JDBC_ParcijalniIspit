@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/JDBC_AzuriranjeZalihaIGeneriranjeRacuna.iml" filepath="$PROJECT_DIR$/JDBC_AzuriranjeZalihaIGeneriranjeRacuna.iml" />
+      <module fileurl="file://$PROJECT_DIR$/JDBC_ParcijalniIspit.iml" filepath="$PROJECT_DIR$/JDBC_ParcijalniIspit.iml" />
     </modules>
   </component>
 </project>

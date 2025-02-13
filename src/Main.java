@@ -5,239 +5,151 @@ import java.util.Scanner;
 
 public class Main {
     private static Connection connection;
+    private static final String URL = "jdbc:sqlserver://localhost:1433;databaseName=JavaAdv;encrypt=true;trustServerCertificate=true";
+    private static final String USER = "root";
+    private static final String PASSWORD = "password";
 
     public static void main(String[] args) {
-        try {
-           
+
             connection = DatabaseService.createConnection();
             Scanner scanner = new Scanner(System.in);
 
             while (true) {
-                System.out.println("Ovo su opcije školskog sustava:\n");
-                System.out.println("1. Unesi novog učenika");
-                System.out.println("2. Pretraži razred po imenu");
-                System.out.println("3. Prebaci učenika u drugi razred");
-                System.out.println("4. Ispiši sve učenike za određeni razred");
-                System.out.println("5. Obriši učenika");
-                System.out.println("6. Update imena i prezimena nastavnika");
-                System.out.println("7. Izlaz");
-                System.out.println("Odaberite opciju:\n");
+                System.out.println("\nOdaberite opciju:");
+                System.out.println("1 - Unesi novog polaznika");
+                System.out.println("2 - Unesi novi program obrazovanja");
+                System.out.println("3 - Upisi polaznika na program obrazovanja");
+                System.out.println("4 - Prebaci polaznika iz jednog u drugi program obrazovanja");
+                System.out.println("5 - Prikazi polaznike određenog programa");
+                System.out.println("0 - Izlaz");
+                System.out.println("Unos: ");
 
-                int odabir = scanner.nextInt();
+                int opcija = scanner.nextInt();
                 scanner.nextLine();
 
-                switch (odabir) {
-                    case 1:
-                        unesiNovogUcenika(scanner);
-                        break;
-                    case 2:
-                        pretraziRazredPoImenu(scanner);
-                        break;
-                    case 3:
-                        prebaciUcenikaUDrugiRazred(scanner);
-                        break;
-                    case 4:
-                        ispisiSveUcenikeZaRazred(scanner);
-                        break;
-                    case 5:
-                        obrisiUcenika(scanner);
-                        break;
-                    case 6:
-                        updateNastavnika(scanner);
-                        break;
-                    case 7:
-                        System.out.println("Izlaz iz aplikacije.");
-                        connection.close();
+                switch (opcija) {
+                    case 1 -> unesiNovogPolaznika(scanner);
+                    case 2 -> unesiNoviProgram(scanner);
+                    case 3 -> upisiPolaznikaNaProgram(scanner);
+                    case 4 -> prebaciPolaznika(scanner);
+                    case 5 -> prikaziPolaznikePrograma(scanner);
+                    case 0 -> {
+                        System.out.println("Izlaz iz programa.");
+                        scanner.close();
                         return;
-                    default:
-                        System.out.println("Nevažeći odabir.");
+                    }
+                    default -> System.out.println("Nepoznata opcija, pokušajte ponovno.");
                 }
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
-    }
 
-    private static void unesiNovogUcenika(Scanner scanner) throws SQLException {
-        System.out.println("Unesite ime učenika:");
+
+    private static void unesiNovogPolaznika(Scanner scanner) {
+        System.out.print("Unesite ime polaznika: ");
         String ime = scanner.nextLine();
-        System.out.println("Unesite prezime učenika:");
+        System.out.print("Unesite prezime polaznika: ");
         String prezime = scanner.nextLine();
-        System.out.println("Unesite ID razreda:");
-        int razredId = scanner.nextInt();
-        scanner.nextLine();
 
-
-        if (!postojiRazred(razredId)) {
-            System.out.println("Razred s ID-om " + razredId + " ne postoji. Unesite naziv novog razreda:");
-            String nazivRazreda = scanner.nextLine();
-            System.out.println("Unesite ID nastavnika za ovaj razred:");
-            int nastavnikId = scanner.nextInt();
-            scanner.nextLine(); // Očisti buffer
-            razredId = unesiNoviRazred(nazivRazreda, nastavnikId);
-        }
-
-        String sql = "INSERT INTO Ucenik (Ime, Prezime, RazredID) VALUES (?, ?, ?)";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, ime);
-            statement.setString(2, prezime);
-            statement.setInt(3, razredId);
-            statement.executeUpdate();
-            System.out.println("Učenik uspješno unesen.");
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+             CallableStatement stmt = conn.prepareCall("{CALL UnesiNovogPolaznika(?, ?)}")) {
+            stmt.setString(1, ime);
+            stmt.setString(2, prezime);
+            stmt.execute();
+            System.out.println("Polaznik uspješno dodan.");
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
 
-    private static boolean postojiRazred(int razredId) throws SQLException {
-        String sql = "SELECT id FROM Razred WHERE id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, razredId);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                return resultSet.next();
-            }
-        }
-    }
-
-    private static int unesiNoviRazred(String nazivRazreda, int nastavnikId) throws SQLException {
-        String sql = "INSERT INTO Razred (Naziv, NastavnikId) OUTPUT INSERTED.id VALUES (?, ?)";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, nazivRazreda);
-            statement.setInt(2, nastavnikId);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next()) {
-                    return resultSet.getInt("id");
-                }
-            }
-        }
-        throw new SQLException("Neuspješan unos razreda.");
-    }
-
-    private static int dohvatiZadnjiUneseniRazredId() throws SQLException {
-        String sql = "SELECT SCOPE_IDENTITY() AS lastId";
-        try (Statement statement = connection.createStatement()) {
-            try (ResultSet resultSet = statement.executeQuery(sql)) {
-                if (resultSet.next()) {
-                    return resultSet.getInt(1);
-                }
-            }
-        }
-        return -1;
-    }
-
-    private static void pretraziRazredPoImenu(Scanner scanner) throws SQLException {
-        System.out.println("Unesite naziv razreda:");
+    private static void unesiNoviProgram(Scanner scanner) {
+        System.out.print("Unesite naziv programa: ");
         String naziv = scanner.nextLine();
+        System.out.print("Unesite CSVET bodove: ");
+        int csvet = scanner.nextInt();
+        scanner.nextLine();
 
-        String sql = "SELECT * FROM Razred WHERE naziv = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, naziv);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                if (resultSet.next()) {
-                    System.out.println("Razred pronađen: ID = " + resultSet.getInt("id") + ", Naziv = " + resultSet.getString("naziv"));
-                } else {
-                    System.out.println("Razred nije pronađen.");
-                }
-            }
+        String sql = "INSERT INTO ProgramObrazovanja (Naziv, CSVET) VALUES (?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, naziv);
+            stmt.setInt(2, csvet);
+            stmt.executeUpdate();
+            System.out.println("Program obrazovanja uspješno dodan.");
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
-    private static void prebaciUcenikaUDrugiRazred(Scanner scanner) throws SQLException {
-        System.out.println("Unesite ID učenika:");
-        int ucenikId = scanner.nextInt();
-        System.out.println("Unesite trenutni ID razreda:");
-        int trenutniRazredId = scanner.nextInt();
-        System.out.println("Unesite novi ID razreda:");
-        int noviRazredId = scanner.nextInt();
+
+    private static void upisiPolaznikaNaProgram(Scanner scanner) {
+        System.out.print("Unesite ID polaznika: ");
+        int polaznikID = scanner.nextInt();
+        System.out.print("Unesite ID programa obrazovanja: ");
+        int programID = scanner.nextInt();
         scanner.nextLine();
 
-        connection.setAutoCommit(false);
+        String sql = "INSERT INTO Upis (IDPolaznik, IDProgramObrazovanja) VALUES (?, ?)";
 
-        try {
-            String sql = "UPDATE Ucenik SET RazredID = ? WHERE id = ? AND RazredID = ?";
-            try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                statement.setInt(1, noviRazredId);
-                statement.setInt(2, ucenikId);
-                statement.setInt(3, trenutniRazredId);
-                int affectedRows = statement.executeUpdate();
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, polaznikID);
+            stmt.setInt(2, programID);
+            stmt.executeUpdate();
+            System.out.println("Polaznik uspješno upisan na program obrazovanja.");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
-                if (affectedRows == 0) {
-                    System.out.println("Učenik nije pronađen ili je već u traženom razredu.");
-                    connection.rollback();
-                } else {
-                    connection.commit();
-                    System.out.println("Učenik uspješno prebačen u novi razred.");
-                }
+
+    private static void prebaciPolaznika(Scanner scanner) {
+        System.out.print("Unesite ID polaznika: ");
+        int polaznikID = scanner.nextInt();
+        System.out.print("Unesite ID starog programa: ");
+        int stariProgramID = scanner.nextInt();
+        System.out.print("Unesite ID novog programa: ");
+        int noviProgramID = scanner.nextInt();
+        scanner.nextLine();
+
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+             CallableStatement stmt = conn.prepareCall("{CALL PrebaciPolaznika(?, ?, ?)}")) {
+            stmt.setInt(1, polaznikID);
+            stmt.setInt(2, stariProgramID);
+            stmt.setInt(3, noviProgramID);
+            stmt.execute();
+            System.out.println("Polaznik uspješno prebačen u novi program.");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private static void prikaziPolaznikePrograma(Scanner scanner) {
+        System.out.print("Unesite ID programa obrazovanja: ");
+        int programID = scanner.nextInt();
+        scanner.nextLine();
+
+        String sql = "SELECT p.Ime, p.Prezime, po.Naziv, po.CSVET " +
+                "FROM Upis u " +
+                "JOIN Polaznik p ON u.IDPolaznik = p.PolaznikID " +
+                "JOIN ProgramObrazovanja po ON u.IDProgramObrazovanja = po.ProgramObrazovanjaID " +
+                "WHERE po.ProgramObrazovanjaID = ?";
+
+        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, programID);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                System.out.println("Ime: " + rs.getString("Ime") +
+                        ", Prezime: " + rs.getString("Prezime") +
+                        ", Program: " + rs.getString("Naziv") +
+                        ", CSVET: " + rs.getInt("CSVET"));
             }
         } catch (SQLException e) {
-            connection.rollback();
             e.printStackTrace();
-        } finally {
-            connection.setAutoCommit(true);
-        }
-    }
-
-    private static void ispisiSveUcenikeZaRazred(Scanner scanner) throws SQLException {
-        System.out.println("Unesite ID razreda:");
-        int razredId = scanner.nextInt();
-        scanner.nextLine();
-
-        String sql = "SELECT Ucenik.ime, Ucenik.prezime, Razred.naziv, Nastavnik.ime AS nastavnik_ime, Nastavnik.prezime AS nastavnik_prezime " +
-                "FROM Ucenik " +
-                "JOIN Razred ON Ucenik.RazredID = Razred.id " +
-                "JOIN Nastavnik ON Razred.NastavnikID = Nastavnik.id " +
-                "WHERE Razred.id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, razredId);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                while (resultSet.next()) {
-                    System.out.println("Učenik: " + resultSet.getString("ime") + " " + resultSet.getString("prezime") +
-                            ", Razred: " + resultSet.getString("naziv") +
-                            ", Nastavnik: " + resultSet.getString("nastavnik_ime") + " " + resultSet.getString("nastavnik_prezime"));
-                }
-            }
-        }
-    }
-
-    private static void obrisiUcenika(Scanner scanner) throws SQLException {
-        ispisiSveUcenikeZaRazred(scanner);
-        System.out.println("Unesite ID učenika kojeg želite obrisati:");
-        int ucenikId = scanner.nextInt();
-        scanner.nextLine(); // Očisti buffer
-
-        String sql = "DELETE FROM Ucenik WHERE id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, ucenikId);
-            int affectedRows = statement.executeUpdate();
-
-            if (affectedRows > 0) {
-                System.out.println("Učenik uspješno obrisan.");
-            } else {
-                System.out.println("Učenik nije pronađen.");
-            }
-        }
-    }
-
-    private static void updateNastavnika(Scanner scanner) throws SQLException {
-        System.out.println("Unesite ID nastavnika:");
-        int nastavnikId = scanner.nextInt();
-        scanner.nextLine(); // Očisti buffer
-        System.out.println("Unesite novo ime nastavnika:");
-        String novoIme = scanner.nextLine();
-        System.out.println("Unesite novo prezime nastavnika:");
-        String novoPrezime = scanner.nextLine();
-
-        String sql = "UPDATE Nastavnik SET ime = ?, prezime = ? WHERE id = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, novoIme);
-            statement.setString(2, novoPrezime);
-            statement.setInt(3, nastavnikId);
-            int affectedRows = statement.executeUpdate();
-
-            if (affectedRows > 0) {
-                System.out.println("Nastavnik uspješno ažuriran.");
-            } else {
-                System.out.println("Nastavnik nije pronađen.");
-            }
         }
     }
 }
